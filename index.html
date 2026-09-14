@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>지역명 암기 지도</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -30,7 +31,13 @@
   /* 패널 */
   .panel { position: absolute; z-index: 1000; top: 12px; left: 12px; background: rgba(255,255,255,.95);
            border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.15); padding: 12px 14px; max-width: 260px; }
-  .panel h1 { font-size: 16px; margin: 0 0 6px; }
+  .phead { display: flex; align-items: center; gap: 6px; }
+  .panel h1 { font-size: 16px; margin: 0; flex: 1; white-space: nowrap; }
+  .phead button { font: inherit; font-size: 14px; width: 28px; height: 28px; border: 1px solid #c8d3dd; background: #fff; border-radius: 8px; cursor: pointer; padding: 0; line-height: 1; }
+  .pbody { margin-top: 8px; }
+  .panel.folded .pbody { display: none; }
+  .panel.folded { padding: 8px 10px; }
+  .panel.folded h1 span { display: none; }
   .level { font-size: 13px; color: #333; margin-bottom: 8px; }
   .level b { color: #0b5c9e; }
   .steps { display: flex; gap: 4px; margin-bottom: 10px; }
@@ -43,13 +50,44 @@
              box-shadow: 0 2px 12px rgba(0,0,0,.3); text-align: center; }
   .quizbox small { display: block; font-size: 12px; color: #aebbc8; }
   #loading { position: absolute; z-index: 1001; top: 12px; right: 12px; background: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
-  @media (max-width: 500px) { .panel { max-width: 200px; padding: 10px; } .hint { display: none; } }
+  @media (max-width: 500px) { .panel { max-width: 230px; padding: 10px; } .hint { display: none; } }
+
+  /* 다크모드 */
+  html.dark { color-scheme: dark; }
+  html.dark #map { background: #171c23; }
+  html.dark .lbl { color: #f3f5f7; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000, 0 0 8px #000; }
+  html.dark .lbl.sido { color: #fff; }
+  html.dark .lbl.sgg { color: #dbe7f5; }
+  html.dark .lbl.dong { color: #f4ead9; }
+  html.dark .lbl .sub, html.dark .lbl.dong .sub { color: #c6cdd5; }
+  html.dark .lbl.station { background: rgba(22,28,36,.94); color: #f2f2f2; }
+  html.dark .dot { background: #171c23; }
+  html.dark .dot.xfer { background: #171c23; border-color: #f0f0f0; }
+  html.dark .panel { background: rgba(28,33,40,.95); color: #e8ecf0; box-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  html.dark .level { color: #ccd3da; }
+  html.dark .level b { color: #6cb6ff; }
+  html.dark .steps button, html.dark .phead button { background: #2a313a; color: #e8ecf0; border-color: #46505c; }
+  html.dark .steps button.on { background: #3b82c4; border-color: #3b82c4; }
+  html.dark .hint { color: #9aa4ae; }
+  html.dark #loading { background: #2a313a; color: #eee; }
+  html.dark .quizbox { background: #f5f7fa; color: #14202c; }
+  html.dark .quizbox small { color: #4b5a68; }
+  html.dark .leaflet-tooltip.line-tip { background: #2a313a; color: #eee; border-color: #2a313a; }
+  html.dark .leaflet-tooltip-top.line-tip::before { border-top-color: #2a313a; }
+  html.dark .leaflet-control-attribution { background: rgba(28,33,40,.8); color: #aaa; }
+  html.dark .leaflet-control-attribution a { color: #8ab4f8; }
+  html.dark .leaflet-bar a { background: #2a313a; color: #eee; border-color: #46505c; }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="panel">
-  <h1>🗺️ 지역명 암기 지도</h1>
+<div class="panel" id="panel">
+  <div class="phead">
+    <h1>🗺️ <span>지역명 암기 지도</span></h1>
+    <button id="btnTheme" title="다크/라이트 전환">🌙</button>
+    <button id="btnFold" title="메뉴 접기/펼치기">▾</button>
+  </div>
+  <div class="pbody">
   <div class="level">지금 보이는 단계: <b id="lvName">시·도</b></div>
   <div class="steps">
     <button data-z="7">시·도</button>
@@ -61,6 +99,7 @@
   <label class="opt"><input type="checkbox" id="optParent" checked> 상위 지역 함께 보기</label>
   <label class="opt"><input type="checkbox" id="optQuiz"> 🙈 퀴즈 모드 (이름 숨기기)</label>
   <div class="hint">확대/축소하면 단계가 바뀌어요.<br>퀴즈 모드에서는 지역을 눌러 정답을 확인하세요.</div>
+  </div>
 </div>
 <div id="loading" hidden>동 경계 불러오는 중…</div>
 <div class="quizbox" id="quizbox" hidden></div>
@@ -76,15 +115,29 @@ const SIDO_COLORS = {
   '제주특별자치도':'#f0c8a8'
 };
 
-const map = L.map('map', { zoomSnap: 0.5, minZoom: 6, maxZoom: 17, preferCanvas: true })
+const map = L.map('map', { zoomSnap: 0.5, minZoom: 6, maxZoom: 17, preferCanvas: true, zoomControl: false })
   .setView([36.2, 127.8], 7);
+L.control.zoom({ position: 'bottomright' }).addTo(map); // 패널과 겹치지 않게 오른쪽 아래로
 map.setMaxBounds([[32, 123], [39.5, 132.5]]);
 
-// 글자 없는 배경 지도 (지명이 원래 지도에 안 보이도록)
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-  maxNativeZoom: 12, maxZoom: 19,
-  attribution: 'Tiles &copy; Esri | 역: OpenStreetMap | 행정경계: vuski/admdongkor (2026.07)'
-}).addTo(map);
+// 글자 없는 배경 지도 (지명이 원래 지도에 안 보이도록) — 라이트/다크 테마별 색상
+const THEME = {
+  light: { tile: 'World_Light_Gray_Base', sido: '#34495e', sgg: '#4a6278', dong: '#8a7a66' },
+  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#cfdbe7', sgg: '#a3b4c6', dong: '#b09e86' },
+};
+let isDark = false, baseTile = null;
+function applyTheme(dark) {
+  isDark = dark;
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('btnTheme').textContent = dark ? '☀️' : '🌙';
+  const t = THEME[dark ? 'dark' : 'light'];
+  if (baseTile) map.removeLayer(baseTile);
+  baseTile = L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${t.tile}/MapServer/tile/{z}/{y}/{x}`, {
+    maxNativeZoom: 12, maxZoom: 19,
+    attribution: 'Tiles &copy; Esri | 역: OpenStreetMap | 행정경계: vuski/admdongkor (2026.07)'
+  }).addTo(map);
+  for (const k of ['sido', 'sgg', 'dong']) if (layers[k]) layers[k].setStyle({ color: t[k] });
+}
 
 const canvas = L.canvas({ padding: 0.3 });
 const layers = {};
@@ -108,6 +161,7 @@ Promise.all([fetchJSON('data/sido.json'), fetchJSON('data/sgg.json'), fetchJSON(
   layers.sgg = L.geoJSON(sgg, { renderer: canvas, style: { color: '#4a6278', weight: 1.2, fill: true, fillOpacity: 0 },
     onEachFeature: (f, l) => l.on('click', () => reveal(f.properties.n, f.properties.s, 'sgg', l))
   });
+  applyTheme(isDark);
   update();
 });
 
@@ -115,7 +169,7 @@ function ensureDong() {
   if (layers.dong || dongLoading) return;
   document.getElementById('loading').hidden = false;
   dongLoading = fetchJSON('data/dong.json').then(d => {
-    layers.dong = L.geoJSON(d, { renderer: canvas, style: { color: '#8a7a66', weight: 0.8, dashArray: '3 3', fill: true, fillOpacity: 0 },
+    layers.dong = L.geoJSON(d, { renderer: canvas, style: { color: THEME[isDark ? 'dark' : 'light'].dong, weight: 0.8, dashArray: '3 3', fill: true, fillOpacity: 0 },
       onEachFeature: (f, l) => l.on('click', () => reveal(f.properties.n, f.properties.s + ' ' + f.properties.g, 'dong', l))
     });
     document.getElementById('loading').hidden = true;
@@ -230,6 +284,19 @@ function reveal(name, parent, kind, layer) {
   clearTimeout(quizTimer);
   quizTimer = setTimeout(() => { box.hidden = true; clearHi(); }, 5000);
 }
+
+// ---------- 테마 / 패널 접기 ----------
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const mq = matchMedia('(prefers-color-scheme: dark)');
+applyTheme(store.get('theme') ? store.get('theme') === 'dark' : mq.matches);
+mq.addEventListener('change', e => { if (!store.get('theme')) applyTheme(e.matches); });
+document.getElementById('btnTheme').addEventListener('click', () => { applyTheme(!isDark); store.set('theme', isDark ? 'dark' : 'light'); });
+
+const panel = document.getElementById('panel');
+function setFold(f) { panel.classList.toggle('folded', f); document.getElementById('btnFold').textContent = f ? '▸' : '▾'; }
+setFold(store.get('fold') ? store.get('fold') === '1' : innerWidth < 600); // 모바일은 기본 접힘
+document.getElementById('btnFold').addEventListener('click', () => { setFold(!panel.classList.contains('folded')); store.set('fold', panel.classList.contains('folded') ? '1' : '0'); });
 
 // ---------- 컨트롤 ----------
 document.querySelectorAll('.steps button').forEach(b =>
