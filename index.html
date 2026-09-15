@@ -18,7 +18,7 @@
          text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px #fff; }
   .lbl.sido { font-family: 'Noto Serif KR', 'Apple Myungjo', 'Nanum Myeongjo', serif; font-size: 24px; font-weight: 600;
               letter-spacing: 0.06em; color: #1c2733; text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 8px rgba(255,255,255,.9); }
-  .lbl.sgg  { font-size: 15px; color: #203a57; }
+  .lbl.sgg  { font-size: 15px; color: #1a4fb3; }
   .lbl.dong { font-size: 13px; font-weight: 600; color: #3a2a17; }
   .lbl.station { font-size: 11px; font-weight: 700; color: #0b5c9e; transform: translate(6px, -50%); text-shadow: none;
                  background: rgba(255,255,255,.92); border: 1px solid #9cc3e6; border-radius: 8px; padding: 0 5px; line-height: 15px; }
@@ -60,7 +60,7 @@
   html.dark #map { background: #171c23; }
   html.dark .lbl { color: #f3f5f7; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000, 0 0 8px #000; }
   html.dark .lbl.sido { color: #f7f3ea; text-shadow: 0 0 2px #000, 0 0 4px #000, 0 0 8px rgba(0,0,0,.9); }
-  html.dark .lbl.sgg { color: #dbe7f5; }
+  html.dark .lbl.sgg { color: #9cc5ff; }
   html.dark .lbl.dong { color: #f4ead9; }
   html.dark .lbl .sub, html.dark .lbl.dong .sub { color: #c6cdd5; }
   html.dark .lbl.station { background: rgba(22,28,36,.94); color: #f2f2f2; }
@@ -125,8 +125,9 @@ map.setMaxBounds([[32, 123], [39.5, 132.5]]);
 
 // 글자 없는 배경 지도 (지명이 원래 지도에 안 보이도록) — 라이트/다크 테마별 색상
 const THEME = {
-  light: { tile: 'World_Light_Gray_Base', sido: '#16222e', sgg: '#2f4458', dong: '#6d5c48', halo: '#ffffff' },
-  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#f2f5f8', sgg: '#b9c8d8', dong: '#c7b394', halo: '#0d1117' },
+  // 시도=검정, 시군구=파랑, 동=회색 으로 색 자체를 다르게 해서 구분
+  light: { tile: 'World_Light_Gray_Base', sido: '#16222e', sgg: '#1f5fd6', dong: '#8f8f8f', halo: '#ffffff' },
+  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#f2f5f8', sgg: '#6aa8ff', dong: '#8c949c', halo: '#0d1117' },
 };
 let isDark = false, baseTile = null;
 function applyTheme(dark) {
@@ -271,7 +272,7 @@ function update() {
   layers.sidoLine.setStyle({ color: t.sido, opacity: 1, weight: lv === 'sido' ? 2.2 : 2.8 });
   if (show.sggLine) {
     layers.sggHalo.setStyle({ color: t.halo, opacity: 0.75, weight: lv === 'sgg' ? 4 : 5 });
-    layers.sggLine.setStyle({ color: t.sgg, opacity: 1, weight: lv === 'sgg' ? 1.6 : 2.2 });
+    layers.sggLine.setStyle({ color: t.sgg, opacity: 1, weight: lv === 'sgg' ? 2 : 3 });
   }
   if (show.dongLine) layers.dongLine.setStyle({ color: t.dong, opacity: 0.95, weight: z < 14 ? 1.1 : 1.5 });
   if (show.lines) layers.lines.setStyle({ weight: z < Z_DONG ? 2 : z < 14 ? 3.5 : 5, opacity: z < Z_DONG ? 0.65 : 0.9 });
