@@ -101,7 +101,7 @@
   <label class="opt" style="padding-left:18px"><input type="checkbox" id="optStationName"> 역 이름 보기</label>
   <label class="opt"><input type="checkbox" id="optParent" checked> 상위 지역 함께 보기</label>
   <label class="opt"><input type="checkbox" id="optQuiz"> 🙈 퀴즈 모드 (이름 숨기기)</label>
-  <div class="hint">확대/축소하면 단계가 바뀌어요.<br>퀴즈 모드에서는 지역을 눌러 정답을 확인하세요.</div>
+  <div class="hint">확대/축소하면 단계가 바뀌어요.<br>지역을 누르면 범위가 표시돼요. (퀴즈 모드에선 정답 확인)</div>
   </div>
 </div>
 <div id="loading" hidden>동 경계 불러오는 중…</div>
@@ -125,8 +125,8 @@ map.setMaxBounds([[32, 123], [39.5, 132.5]]);
 
 // 글자 없는 배경 지도 (지명이 원래 지도에 안 보이도록) — 라이트/다크 테마별 색상
 const THEME = {
-  light: { tile: 'World_Light_Gray_Base', sido: '#4d6073', sgg: '#4a6278', dong: '#8a7a66' },
-  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#cfdbe7', sgg: '#a3b4c6', dong: '#b09e86' },
+  light: { tile: 'World_Light_Gray_Base', sido: '#16222e', sgg: '#2f4458', dong: '#6d5c48', halo: '#ffffff' },
+  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#f2f5f8', sgg: '#b9c8d8', dong: '#c7b394', halo: '#0d1117' },
 };
 let isDark = false, baseTile = null;
 function applyTheme(dark) {
@@ -139,12 +139,12 @@ function applyTheme(dark) {
     maxNativeZoom: 12, maxZoom: 19,
     attribution: 'Tiles &copy; Esri | 역: OpenStreetMap | 행정경계: vuski/admdongkor (2026.07)'
   }).addTo(map);
-  for (const k of ['sido', 'sgg', 'dong']) if (layers[k]) layers[k].setStyle({ color: t[k] });
+  if (labels) update();
 }
 
 const canvas = L.canvas({ padding: 0.3 });
 const layers = {};
-let labels = null, dongLoading = null;
+let labels = null, dongLoading = null, layerSig = '';
 const opt = { station: true, stationName: false, parent: true, quiz: false };
 
 const DATA_VER = 3; // 데이터 파일을 바꾸면 올려서 브라우저 캐시를 갱신
@@ -157,13 +157,18 @@ Promise.all([fetchJSON('data/sido.json'), fetchJSON('data/sgg.json'), fetchJSON(
   layers.lines = L.geoJSON(lines, { renderer: canvas, style: f => ({ color: f.properties.c, weight: 3, opacity: 0.9, lineCap: 'round' }),
     onEachFeature: (f, l) => l.bindTooltip(f.properties.n, { sticky: true, className: 'line-tip', direction: 'top', offset: [0, -6] })
   });
+  // 채우기 + 클릭(퀴즈)용
   layers.sido = L.geoJSON(sido, { renderer: canvas, style: f => ({
-      color: '#34495e', weight: 1.6, fillColor: SIDO_COLORS[f.properties.n] || '#ddd', fillOpacity: 0.45 }),
-    onEachFeature: (f, l) => l.on('click', () => reveal(f.properties.n, '', 'sido', l))
-  }).addTo(map);
-  layers.sgg = L.geoJSON(sgg, { renderer: canvas, style: { color: '#4a6278', weight: 1.2, fill: true, fillOpacity: 0 },
-    onEachFeature: (f, l) => l.on('click', () => reveal(f.properties.n, f.properties.s, 'sgg', l))
+      stroke: false, fillColor: SIDO_COLORS[f.properties.n] || '#ddd', fillOpacity: 0.45 }),
+    onEachFeature: (f, l) => l.on('click', e => reveal(f.properties.n, '', 'sido', l, e))
   });
+  layers.sgg = L.geoJSON(sgg, { renderer: canvas, style: { stroke: false, fill: true, fillOpacity: 0 },
+    onEachFeature: (f, l) => l.on('click', e => reveal(f.properties.n, f.properties.s, 'sgg', l, e))
+  });
+  // 경계선 전용 (흰 테두리 + 진한 선)
+  const outline = d => L.geoJSON(d, { renderer: canvas, interactive: false, style: { fill: false, lineJoin: 'round' } });
+  layers.sidoHalo = outline(sido); layers.sidoLine = outline(sido);
+  layers.sggHalo = outline(sgg);   layers.sggLine = outline(sgg);
   applyTheme(isDark);
   update();
 });
@@ -172,9 +177,10 @@ function ensureDong() {
   if (layers.dong || dongLoading) return;
   document.getElementById('loading').hidden = false;
   dongLoading = fetchJSON('data/dong.json').then(d => {
-    layers.dong = L.geoJSON(d, { renderer: canvas, style: { color: THEME[isDark ? 'dark' : 'light'].dong, weight: 0.8, dashArray: '3 3', fill: true, fillOpacity: 0 },
-      onEachFeature: (f, l) => l.on('click', () => reveal(f.properties.n, f.properties.s + ' ' + f.properties.g, 'dong', l))
+    layers.dong = L.geoJSON(d, { renderer: canvas, style: { stroke: false, fill: true, fillOpacity: 0 },
+      onEachFeature: (f, l) => l.on('click', e => reveal(f.properties.n, f.properties.s + ' ' + f.properties.g, 'dong', l, e))
     });
+    layers.dongLine = L.geoJSON(d, { renderer: canvas, interactive: false, style: { fill: false, lineJoin: 'round' } });
     document.getElementById('loading').hidden = true;
     update();
   });
@@ -218,10 +224,18 @@ function placeStations(bounds, placed, showNames) {
       ? `<div class="dot xfer" style="left:${p.x}px;top:${p.y}px"></div>`
       : `<div class="dot" style="left:${p.x}px;top:${p.y}px;border-color:${col}"></div>`;
     if (!showNames) continue;
-    const w = (s[2].length + 1) * 11.5 + 18, box = [p.x - 4, p.y - 10, p.x + w, p.y + 10];
-    if (placed.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
-    placed.push(box);
-    html += `<div class="lbl station" style="left:${p.x}px;top:${p.y}px;border-color:${ls.length > 1 ? '#222' : col}">${esc(s[2])}역</div>`;
+    // 오른쪽 → 왼쪽 → 위 → 아래 순서로 빈자리를 찾아 배치
+    const w = (s[2].length + 1) * 11 + 14, h = 18, g = 7;
+    const spots = [
+      [[p.x + g - 2, p.y - h / 2, p.x + g + w, p.y + h / 2], 'translate(7px,-50%)'],
+      [[p.x - g - w, p.y - h / 2, p.x - g + 2, p.y + h / 2], 'translate(calc(-100% - 7px),-50%)'],
+      [[p.x - w / 2, p.y - g - h, p.x + w / 2, p.y - g + 2], 'translate(-50%,calc(-100% - 7px))'],
+      [[p.x - w / 2, p.y + g - 2, p.x + w / 2, p.y + g + h], 'translate(-50%,7px)'],
+    ];
+    const spot = spots.find(([box]) => !placed.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]));
+    if (!spot) continue;
+    placed.push(spot[0]);
+    html += `<div class="lbl station" style="left:${p.x}px;top:${p.y}px;transform:${spot[1]};border-color:${ls.length > 1 ? '#222' : col}">${esc(s[2])}역</div>`;
   }
   return html;
 }
@@ -234,20 +248,33 @@ function update() {
   document.getElementById('lvName').textContent = { sido: '시·도', sgg: '시·군·구', dong: '동(읍·면)' }[lv];
   document.querySelectorAll('.steps button').forEach(b => b.classList.toggle('on', levelOf(+b.dataset.z) === lv));
 
-  // 경계선
-  const want = { sgg: z >= Z_SGG, dong: z >= Z_DONG };
-  if (want.dong) ensureDong();
-  for (const k of ['sgg', 'dong']) {
-    if (!layers[k]) continue;
-    if (want[k] && !map.hasLayer(layers[k])) layers[k].addTo(map);
-    if (!want[k] && map.hasLayer(layers[k])) map.removeLayer(layers[k]);
+  // 경계선: 캔버스는 추가한 순서대로 그리므로, 보이는 레이어가 바뀌면 순서대로 다시 올림
+  // (아래) 시도 채우기 → 클릭 영역 → 동 선 → 시군구 선 → 시도 선 → 지하철 노선 (위)
+  if (z >= Z_DONG) ensureDong();
+  const show = {
+    sido: true, sgg: z >= Z_SGG, dong: z >= Z_DONG && !!layers.dong,
+    dongLine: z >= Z_DONG && !!layers.dong, sggHalo: z >= Z_SGG, sggLine: z >= Z_SGG,
+    sidoHalo: true, sidoLine: true, lines: opt.station && z >= Z_SGG,
+  };
+  const order = Object.keys(show).filter(k => show[k]);
+  const sig = order.join();
+  if (sig !== layerSig) {
+    Object.keys(show).forEach(k => layers[k] && map.hasLayer(layers[k]) && map.removeLayer(layers[k]));
+    order.forEach(k => layers[k].addTo(map));
+    layerSig = sig;
+    if (hi) { map.removeLayer(hi.layer); hi.layer.addTo(map); } // 강조는 항상 맨 위
   }
-  layers.sido.setStyle({ fillOpacity: lv === 'sido' ? 0.45 : lv === 'sgg' ? 0.25 : 0.12 });
-  // 지하철 노선: 시군구 단계부터 가늘게, 동 단계에서 굵게
-  const wantLines = opt.station && z >= Z_SGG;
-  if (wantLines && !map.hasLayer(layers.lines)) layers.lines.addTo(map);
-  if (!wantLines && map.hasLayer(layers.lines)) map.removeLayer(layers.lines);
-  if (wantLines) layers.lines.setStyle({ weight: z < Z_DONG ? 2 : z < 14 ? 3.5 : 5, opacity: z < Z_DONG ? 0.65 : 0.9 });
+  if (hi && hi.kind !== lv) clearHi();
+  const t = THEME[isDark ? 'dark' : 'light'];
+  layers.sido.setStyle({ fillOpacity: lv === 'sido' ? 0.45 : lv === 'sgg' ? 0.22 : 0.1 });
+  layers.sidoHalo.setStyle({ color: t.halo, opacity: 0.85, weight: lv === 'sido' ? 5 : 6.5 });
+  layers.sidoLine.setStyle({ color: t.sido, opacity: 1, weight: lv === 'sido' ? 2.2 : 2.8 });
+  if (show.sggLine) {
+    layers.sggHalo.setStyle({ color: t.halo, opacity: 0.75, weight: lv === 'sgg' ? 4 : 5 });
+    layers.sggLine.setStyle({ color: t.sgg, opacity: 1, weight: lv === 'sgg' ? 1.6 : 2.2 });
+  }
+  if (show.dongLine) layers.dongLine.setStyle({ color: t.dong, opacity: 0.95, weight: z < 14 ? 1.1 : 1.5 });
+  if (show.lines) layers.lines.setStyle({ weight: z < Z_DONG ? 2 : z < 14 ? 3.5 : 5, opacity: z < Z_DONG ? 0.65 : 0.9 });
 
   // 라벨
   const bounds = map.getBounds().pad(0.1), placed = [];
@@ -270,23 +297,27 @@ function update() {
 
 map.on('zoomend moveend', update);
 
-// ---------- 퀴즈 모드: 클릭하면 정답 ----------
-let quizTimer, hiLayer;
-function clearHi() { if (hiLayer) { hiLayer.setStyle(hiLayer._orig); hiLayer = null; } }
-function reveal(name, parent, kind, layer) {
-  if (!opt.quiz) return;
-  const lv = levelOf(map.getZoom());
-  if (kind !== lv) return; // 현재 단계의 지역만 응답
+// ---------- 지역 클릭: 범위 강조 + 이름 표시 (퀴즈 모드에선 정답 확인) ----------
+let hi = null; // { layer, key, kind }
+function clearHi() {
+  if (hi) { map.removeLayer(hi.layer); hi = null; }
+  document.getElementById('quizbox').hidden = true;
+}
+function reveal(name, parent, kind, layer, e) {
+  if (e) L.DomEvent.stopPropagation(e); // Leaflet 이벤트에 걸어야 지도 'click'(해제)으로 번지지 않음
+  if (kind !== levelOf(map.getZoom())) return; // 현재 단계의 지역만 응답
+  const key = kind + ':' + name + ':' + parent;
+  const same = hi && hi.key === key;
   clearHi();
-  hiLayer = layer;
-  layer._orig = { fillColor: layer.options.fillColor, fillOpacity: layer.options.fillOpacity, weight: layer.options.weight };
-  layer.setStyle({ fillColor: '#ffd84d', fillOpacity: 0.55, weight: layer.options.weight + 1.5 });
+  if (same) return; // 같은 곳을 다시 누르면 해제
+  const t = isDark ? { fill: '#ffd84d', line: '#ffcc00' } : { fill: '#ffd84d', line: '#e08a00' };
+  hi = { key, kind, layer: L.geoJSON(layer.toGeoJSON(), { renderer: canvas, interactive: false,
+    style: { color: t.line, weight: 3.5, opacity: 1, fillColor: t.fill, fillOpacity: 0.35, lineJoin: 'round' } }).addTo(map) };
   const box = document.getElementById('quizbox');
   box.innerHTML = `${esc(name)}${parent ? `<small>${esc(parent)}</small>` : ''}`;
   box.hidden = false;
-  clearTimeout(quizTimer);
-  quizTimer = setTimeout(() => { box.hidden = true; clearHi(); }, 5000);
 }
+map.on('click', clearHi); // 빈 곳(바다 등)을 누르면 해제
 
 // ---------- 테마 / 패널 접기 ----------
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -309,7 +340,7 @@ document.getElementById('optStationName').addEventListener('change', e => { opt.
 document.getElementById('optParent').addEventListener('change', e => { opt.parent = e.target.checked; update(); });
 document.getElementById('optQuiz').addEventListener('change', e => {
   opt.quiz = e.target.checked;
-  if (!opt.quiz) { document.getElementById('quizbox').hidden = true; clearHi(); }
+  clearHi();
   update();
 });
 </script>
