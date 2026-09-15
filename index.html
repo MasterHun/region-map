@@ -317,7 +317,7 @@ function update() {
   if (!opt.quiz) {
     if (lv === 'sido') html += placeLabels(labels.sido, 'sido', 22, false, placed, bounds, 99);
     if (lv === 'sgg')  html += placeLabels(labels.sgg, 'sgg', 15, opt.parent, placed, bounds, 400);
-    if (lv === 'dong') html += placeLabels(labels.dong, 'dong', 13, opt.parent && z < 14, placed, bounds, 600);
+    if (lv === 'dong') html += placeLabels(labels.dong, 'dong', 13, opt.parent, placed, bounds, 600);
   }
   labelLayer.render(html);
   // 역 이름은 퀴즈 모드에서도 위치 힌트로 보여줌 — 지역 라벨의 실제 크기를 재서 겹치지 않게 배치
