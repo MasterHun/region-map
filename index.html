@@ -18,7 +18,7 @@
          text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px #fff; }
   .lbl.sido { font-family: 'Noto Serif KR', 'Apple Myungjo', 'Nanum Myeongjo', serif; font-size: 24px; font-weight: 600;
               letter-spacing: 0.06em; color: #1c2733; text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 8px rgba(255,255,255,.9); }
-  .lbl.sgg  { font-size: 15px; color: #1a4fb3; }
+  .lbl.sgg  { font-size: 15px; color: var(--sgg-text, #1a4fb3); }
   .lbl.dong { font-size: 13px; font-weight: 600; color: #3a2a17; }
   .lbl.station { font-size: 11px; font-weight: 700; color: #0b5c9e; transform: translate(6px, -50%); text-shadow: none;
                  background: rgba(255,255,255,.92); border: 1px solid #9cc3e6; border-radius: 8px; padding: 0 5px; line-height: 15px; }
@@ -48,6 +48,13 @@
   .steps button.on { background: #0b5c9e; color: #fff; border-color: #0b5c9e; }
   label.opt { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 4px 0; cursor: pointer; }
   .hint { font-size: 12px; color: #666; margin-top: 8px; line-height: 1.4; }
+  details.colors { margin-top: 8px; border-top: 1px solid #e3e8ee; padding-top: 6px; font-size: 13px; }
+  details.colors summary { cursor: pointer; user-select: none; padding: 2px 0; }
+  .crow { display: flex; align-items: center; justify-content: space-between; margin: 5px 0; gap: 8px; }
+  .crow input[type=color] { width: 40px; height: 26px; padding: 0; border: 1px solid #c8d3dd; border-radius: 6px; background: none; cursor: pointer; }
+  .crow .sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .creset { font: inherit; font-size: 12px; margin-top: 4px; padding: 4px 8px; border: 1px solid #c8d3dd; background: #fff; border-radius: 6px; cursor: pointer; }
+  .cnote { font-size: 11px; color: #888; margin-top: 4px; }
   .quizbox { position: absolute; z-index: 1000; bottom: 24px; left: 50%; transform: translateX(-50%);
              background: #14202c; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 16px;
              box-shadow: 0 2px 12px rgba(0,0,0,.3); text-align: center; }
@@ -60,7 +67,7 @@
   html.dark #map { background: #171c23; }
   html.dark .lbl { color: #f3f5f7; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000, 0 0 8px #000; }
   html.dark .lbl.sido { color: #f7f3ea; text-shadow: 0 0 2px #000, 0 0 4px #000, 0 0 8px rgba(0,0,0,.9); }
-  html.dark .lbl.sgg { color: #9cc5ff; }
+  html.dark .lbl.sgg { color: var(--sgg-text, #9cc5ff); }
   html.dark .lbl.dong { color: #f4ead9; }
   html.dark .lbl .sub, html.dark .lbl.dong .sub { color: #c6cdd5; }
   html.dark .lbl.station { background: rgba(22,28,36,.94); color: #f2f2f2; }
@@ -72,6 +79,10 @@
   html.dark .steps button, html.dark .phead button { background: #2a313a; color: #e8ecf0; border-color: #46505c; }
   html.dark .steps button.on { background: #3b82c4; border-color: #3b82c4; }
   html.dark .hint { color: #9aa4ae; }
+  html.dark details.colors { border-top-color: #3a434e; }
+  html.dark .creset { background: #2a313a; color: #e8ecf0; border-color: #46505c; }
+  html.dark .crow input[type=color] { border-color: #46505c; }
+  html.dark .cnote { color: #8a949e; }
   html.dark #loading { background: #2a313a; color: #eee; }
   html.dark .quizbox { background: #f5f7fa; color: #14202c; }
   html.dark .quizbox small { color: #4b5a68; }
@@ -101,6 +112,16 @@
   <label class="opt" style="padding-left:18px"><input type="checkbox" id="optStationName"> 역 이름 보기</label>
   <label class="opt"><input type="checkbox" id="optParent" checked> 상위 지역 함께 보기</label>
   <label class="opt"><input type="checkbox" id="optQuiz"> 🙈 퀴즈 모드 (이름 숨기기)</label>
+  <details class="colors" id="colorBox">
+    <summary>🎨 색상 설정</summary>
+    <div class="crow"><span>시·도 경계</span><input type="color" data-key="sido"></div>
+    <div class="crow"><span>시·군·구 경계</span><input type="color" data-key="sgg"></div>
+    <div class="crow"><span>동 경계</span><input type="color" data-key="dong"></div>
+    <div class="crow"><span>구 이름 글자</span><input type="color" data-key="sggText"></div>
+    <div class="crow"><span>누른 지역 강조</span><input type="color" data-key="pick"></div>
+    <button class="creset" id="colorReset">기본 색으로 되돌리기</button>
+    <div class="cnote" id="colorNote">라이트/다크 모드마다 따로 저장돼요.</div>
+  </details>
   <div class="hint">확대/축소하면 단계가 바뀌어요.<br>지역을 누르면 범위가 표시돼요. (퀴즈 모드에선 정답 확인)</div>
   </div>
 </div>
@@ -126,15 +147,28 @@ map.setMaxBounds([[32, 123], [39.5, 132.5]]);
 // 글자 없는 배경 지도 (지명이 원래 지도에 안 보이도록) — 라이트/다크 테마별 색상
 const THEME = {
   // 시도=검정, 시군구=파랑, 동=회색 으로 색 자체를 다르게 해서 구분
-  light: { tile: 'World_Light_Gray_Base', sido: '#16222e', sgg: '#1f5fd6', dong: '#8f8f8f', halo: '#ffffff' },
-  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#f2f5f8', sgg: '#6aa8ff', dong: '#8c949c', halo: '#0d1117' },
+  light: { tile: 'World_Light_Gray_Base', sido: '#16222e', sgg: '#1f5fd6', dong: '#8f8f8f', sggText: '#1a4fb3', pick: '#e08a00', halo: '#ffffff' },
+  dark:  { tile: 'World_Dark_Gray_Base',  sido: '#f2f5f8', sgg: '#6aa8ff', dong: '#8c949c', sggText: '#9cc5ff', pick: '#ffcc00', halo: '#0d1117' },
 };
+// 사용자 지정 색 (모드별로 localStorage에 저장)
+const COLOR_KEYS = ['sido', 'sgg', 'dong', 'sggText', 'pick'];
+const mode = () => isDark ? 'dark' : 'light';
+function loadCustom(m) { try { return JSON.parse(localStorage.getItem('colors-' + m)) || {}; } catch { return {}; } }
+function saveCustom(m, c) { try { localStorage.setItem('colors-' + m, JSON.stringify(c)); } catch {} }
+const colors = () => ({ ...THEME[mode()], ...loadCustom(mode()) });
+function syncColorUI() {
+  const c = colors();
+  document.querySelectorAll('#colorBox input[type=color]').forEach(i => i.value = c[i.dataset.key]);
+  document.documentElement.style.setProperty('--sgg-text', c.sggText);
+  document.getElementById('colorNote').textContent = `지금은 ${isDark ? '다크' : '라이트'} 모드 색이에요. 모드마다 따로 저장돼요.`;
+}
 let isDark = false, baseTile = null;
 function applyTheme(dark) {
   isDark = dark;
   document.documentElement.classList.toggle('dark', dark);
   document.getElementById('btnTheme').textContent = dark ? '☀️' : '🌙';
   const t = THEME[dark ? 'dark' : 'light'];
+  syncColorUI();
   if (baseTile) map.removeLayer(baseTile);
   baseTile = L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${t.tile}/MapServer/tile/{z}/{y}/{x}`, {
     maxNativeZoom: 12, maxZoom: 19,
@@ -266,7 +300,7 @@ function update() {
     if (hi) { map.removeLayer(hi.layer); hi.layer.addTo(map); } // 강조는 항상 맨 위
   }
   if (hi && hi.kind !== lv) clearHi();
-  const t = THEME[isDark ? 'dark' : 'light'];
+  const t = colors();
   layers.sido.setStyle({ fillOpacity: lv === 'sido' ? 0.45 : lv === 'sgg' ? 0.22 : 0.1 });
   layers.sidoHalo.setStyle({ color: t.halo, opacity: 0.85, weight: lv === 'sido' ? 5 : 6.5 });
   layers.sidoLine.setStyle({ color: t.sido, opacity: 1, weight: lv === 'sido' ? 2.2 : 2.8 });
@@ -311,14 +345,25 @@ function reveal(name, parent, kind, layer, e) {
   const same = hi && hi.key === key;
   clearHi();
   if (same) return; // 같은 곳을 다시 누르면 해제
-  const t = isDark ? { fill: '#ffd84d', line: '#ffcc00' } : { fill: '#ffd84d', line: '#e08a00' };
+  const pick = colors().pick;
   hi = { key, kind, layer: L.geoJSON(layer.toGeoJSON(), { renderer: canvas, interactive: false,
-    style: { color: t.line, weight: 3.5, opacity: 1, fillColor: t.fill, fillOpacity: 0.35, lineJoin: 'round' } }).addTo(map) };
+    style: { color: pick, weight: 3.5, opacity: 1, fillColor: pick, fillOpacity: 0.3, lineJoin: 'round' } }).addTo(map) };
   const box = document.getElementById('quizbox');
   box.innerHTML = `${esc(name)}${parent ? `<small>${esc(parent)}</small>` : ''}`;
   box.hidden = false;
 }
 map.on('click', clearHi); // 빈 곳(바다 등)을 누르면 해제
+
+// ---------- 색상 설정 ----------
+function refreshPick() { if (hi) hi.layer.setStyle({ color: colors().pick, fillColor: colors().pick }); }
+document.querySelectorAll('#colorBox input[type=color]').forEach(inp => inp.addEventListener('input', () => {
+  const c = loadCustom(mode()); c[inp.dataset.key] = inp.value; saveCustom(mode(), c);
+  syncColorUI(); update(); refreshPick();
+}));
+document.getElementById('colorReset').addEventListener('click', () => {
+  try { localStorage.removeItem('colors-' + mode()); } catch {}
+  syncColorUI(); update(); refreshPick();
+});
 
 // ---------- 테마 / 패널 접기 ----------
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
